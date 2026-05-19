@@ -1,14 +1,35 @@
 # Movie Explorer
 
-Search movies, view details, and save favorites with your own rating and note.
-Built with Next.js and TypeScript. Movie data is from TMDB, fetched through a
-server-side proxy so the API token isn't exposed to the browser.
+A small web app for searching movies, viewing their details, and keeping a
+personal list of favorites with your own rating and notes. Movie data comes
+from TMDB, fetched through a server-side proxy so the API token never reaches
+the browser.
 
-Live app: _add deployed URL here_
+**Live app:** https://movie-explorer-teal-chi.vercel.app
+
+## Features
+
+- **Search** movies by title, with poster, year, and a short description.
+- **Details** view (modal) showing the poster, overview, year, runtime,
+  genres, and TMDB rating.
+- **Favorites** that you can add or remove, each with a 1 to 5 star rating and
+  an optional note.
+- **Persistence** through LocalStorage, so favorites survive a page refresh.
+- **Error handling** for empty searches, no results, invalid input, and
+  network or API failures.
+
+## Tech stack
+
+- Next.js 14 (App Router) and React
+- TypeScript
+- Next.js API routes as the TMDB proxy
+- Plain CSS, no UI library
+- LocalStorage for persistence
+- Deployed on Vercel
 
 ## Running locally
 
-Needs Node 18+.
+Requires Node 18 or newer.
 
 ```bash
 npm install
@@ -16,47 +37,67 @@ cp .env.example .env.local   # then add your TMDB token
 npm run dev                  # http://localhost:3000
 ```
 
-You need a TMDB v4 Read Access Token (free) from
-https://www.themoviedb.org/settings/api. Put it in `.env.local` as
+Get a free TMDB v4 Read Access Token from
+https://www.themoviedb.org/settings/api and put it in `.env.local` as
 `TMDB_ACCESS_TOKEN`.
 
-To deploy on Vercel, import the repo and set that same `TMDB_ACCESS_TOKEN`
-env var in the project settings. That's the only config.
+```bash
+npm run build && npm run start   # production build
+```
 
-## How it's laid out
+### Deploying
 
-- `app/page.tsx` is the UI: search/favorites tabs and the details modal
-- `app/api/search` and `app/api/movie/[id]` are the proxy routes to TMDB
-- `lib/tmdb.ts` holds the TMDB calls, kept server-side
-- `hooks/useFavorites.ts` is the favorites state plus LocalStorage
-- `components/` has MovieCard, MovieDetailsModal, FavoritesPanel, StarRating
+The app runs on Vercel. Import the repo, and set `TMDB_ACCESS_TOKEN` as an
+environment variable in the project settings. That is the only configuration
+needed, since `.env.local` is not committed.
+
+## Project structure
+
+```
+app/
+  page.tsx                 Main UI: search and favorites tabs, details modal
+  layout.tsx, globals.css
+  api/search/route.ts      Proxy: GET /api/search?query=&page=
+  api/movie/[id]/route.ts  Proxy: GET /api/movie/[id]
+components/                MovieCard, MovieDetailsModal, FavoritesPanel, StarRating
+hooks/useFavorites.ts      Favorites state, backed by LocalStorage
+lib/tmdb.ts                TMDB client, runs server-side only
+lib/types.ts               Shared TypeScript types
+```
 
 ## Decisions & tradeoffs
 
-**API proxy.** TMDB is called from API routes, not the browser. The token is
-read from env inside `lib/tmdb.ts`, which only runs server-side, so it never
-gets bundled into the client. The routes also trim TMDB's large response down
-to the few fields the UI uses and turn upstream failures into clean status
-codes (400 / 404 / 502).
+**API proxy.** TMDB is called from Next.js API routes, never from the browser.
+The token is read from the environment inside `lib/tmdb.ts`, which only runs on
+the server, so it is never bundled into the client. The routes also trim
+TMDB's large responses down to the few fields the UI needs and map upstream
+failures to clean status codes (400, 404, 502).
 
-**State.** Just React state and one `useFavorites` hook. It's a single-screen
-app, so a state library would be overkill. The hook keeps all the favorites and
-storage logic in one place so the page component stays mostly markup.
+**State management.** Plain React state plus one `useFavorites` hook. The app
+is a single screen with a modal, so a state library would be unnecessary
+weight. The hook keeps all favorites and storage logic in one place, which
+keeps the page component focused on layout.
 
-**Persistence.** LocalStorage, which was the baseline ask. Favorites survive a
-refresh with no backend, so deployment is trivial. Downside: it's per-browser
-and doesn't sync across devices. There's a `hydrated` flag so the empty initial
-state doesn't clobber stored data before the first read.
+**Persistence.** LocalStorage, which was the baseline requirement. Favorites
+survive a refresh with no backend, which keeps deployment simple. The tradeoff
+is that favorites are per-browser and do not sync across devices. A `hydrated`
+flag ensures the empty initial state never overwrites stored data before the
+first read completes.
 
-**Images.** Plain `<img>` instead of `next/image`. For a grid of external
-fixed-ratio posters the optimizer doesn't buy much, and `<img>` keeps the
-config simpler.
+**Images.** Posters use a plain `<img>` tag rather than `next/image`. For a
+grid of external, fixed-ratio poster images the optimizer adds little, and
+`<img>` keeps the configuration simpler.
 
-## Limitations / what I'd do next
+## Known limitations & what I'd improve with more time
 
-- Search only shows the first page of results. The API route already takes a
-  `page` param, so pagination or "load more" is the obvious next step.
-- No server-side persistence; favorites are browser-local. Next step would be
-  a small DB behind `/api/favorites` and having the hook call that.
-- Search runs on submit; debounced search-as-you-type would be nicer.
-- No tests. I'd start with `lib/tmdb.ts` (the mapping and error handling).
+- **Single page of results.** Search shows only the first page from TMDB. The
+  API route already accepts a `page` parameter, so adding pagination or a
+  "load more" button is the natural next step.
+- **No server-side persistence.** Favorites live in the browser. The next step
+  would be a small database behind `/api/favorites` routes, with the hook
+  reading and writing through those instead of LocalStorage.
+- **Search runs on submit.** Debounced search-as-you-type would be a nicer
+  experience.
+- **No automated tests.** I would start with unit tests for `lib/tmdb.ts`
+  (response mapping and error handling) and a couple of tests for the API
+  routes.
